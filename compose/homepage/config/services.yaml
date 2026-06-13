@@ -1,0 +1,89 @@
+# Homepage services — VA3YMX station portal
+# All UIs are fronted by Caddy over HTTPS (*.example.org, LAN-only A records).
+# Using https URLs keeps the portal + embedded iframes mixed-content-clean.
+
+- Station Control:
+    - Service Control:
+        widget:
+          type: iframe
+          src: https://control.example.org/
+          height: 360
+          referrerPolicy: same-origin
+
+- Live Stats:
+    - APRS message rates (VA3YMX-1):
+        widget:
+          type: iframe
+          src: https://grafana.example.org/d/aprs-va3ymx/aprs-va3ymx-1?kiosk&refresh=30s&from=now-3h&to=now
+          height: 420
+          referrerPolicy: same-origin
+
+- ADS-B:
+    - Aircraft Map (tar1090):
+        href: https://adsb.example.org/
+        description: Live aircraft map
+        siteMonitor: https://adsb.example.org/
+        icon: mdi-airplane
+    - Stats (graphs1090):
+        href: https://adsb.example.org/graphs1090/
+        description: Reception stats & system health
+        icon: mdi-chart-line
+    - ADS-B Grafana (Ultrafeeder Stats):
+        href: https://grafana.example.org/d/ultrafeeder/ultrafeeder-stats
+        description: Message rate, aircraft, range
+        icon: grafana
+
+- SDR / Receiver:
+    - OpenWebRX+:
+        href: https://sdr.example.org/
+        description: Web SDR — discone (Diamond D3000N)
+        siteMonitor: https://sdr.example.org/
+        icon: mdi-radio-tower
+    - HD Radio stream (Icecast):
+        href: https://hd.example.org/hd.mp3
+        description: NRSC-5 audio — start with ./hdradio.sh <freq>
+        siteMonitor: https://hd.example.org/status-json.xsl
+        icon: mdi-music-circle
+    - ACARSHub:
+        href: https://acars.example.org/
+        description: Live VHF aircraft datalink (131 MHz) — activate ACARS mode
+        siteMonitor: https://acars.example.org/
+        icon: mdi-message-text-clock
+    - ACARS Reader:
+        href: https://acars-reader.example.org/
+        description: Readable multipart view — grouped by aircraft, decoded + raw blocks
+        siteMonitor: https://acars-reader.example.org/
+        icon: mdi-text-box-search
+
+- APRS (WX3in1 — sibling project):
+    - WX3in1 iGate:
+        href: http://192.168.1.235/
+        description: APRS digipeater / iGate · 144.390 MHz
+        siteMonitor: http://192.168.1.235/
+        icon: mdi-access-point
+    - aprs.fi (VA3YMX-1):
+        href: https://aprs.fi/#!call=a%2FVA3YMX-1&timerange=3600
+        description: iGate activity on APRS-IS
+        icon: mdi-map-marker-radius
+    - APRS Grafana (VA3YMX-1):
+        href: https://grafana.example.org/d/aprs-va3ymx/aprs-va3ymx-1
+        description: iGate message-rate dashboard
+        icon: grafana
+
+- Monitoring:
+    - Grafana (all dashboards):
+        href: https://grafana.example.org/dashboards
+        description: Message stats — ADS-B + APRS
+        siteMonitor: https://grafana.example.org/
+        icon: grafana
+    - Prometheus:
+        href: https://prometheus.example.org/
+        description: Metrics store / targets
+        icon: prometheus
+
+- Management:
+    - Portainer:
+        href: https://portainer.example.org/
+        description: Full container manager — logs, console, all stacks
+        siteMonitor: https://portainer.example.org/
+        icon: portainer

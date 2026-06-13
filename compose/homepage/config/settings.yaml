@@ -1,0 +1,28 @@
+# Homepage global settings — VA3YMX station portal
+title: VA3YMX Station
+favicon: https://www.raspberrypi.com/favicon.ico
+theme: dark
+color: slate
+headerStyle: clean
+layout:
+  Station Control:
+    style: row
+    columns: 1
+  Live Stats:
+    style: row
+    columns: 1
+  ADS-B:
+    style: row
+    columns: 3
+  SDR / Receiver:
+    style: row
+    columns: 2
+  APRS (WX3in1 — sibling project):
+    style: row
+    columns: 2
+  Monitoring:
+    style: row
+    columns: 2
+  Management:
+    style: row
+    columns: 2

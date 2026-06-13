@@ -1,0 +1,15 @@
+# Icecast streaming server — the destination for HD Radio (nrsc5) audio.
+# Listen:  http://192.168.1.230:8000/hd.mp3   (or https://hd.example.org/hd.mp3 via Caddy)
+# Fill compose/icecast/.env first (gitignored).
+services:
+  icecast:
+    build: /opt/icecast
+    image: va3ymx/icecast:latest
+    container_name: icecast
+    hostname: icecast
+    restart: unless-stopped
+    ports:
+      - 8000:8000
+    environment:
+      - ICECAST_SOURCE_PASSWORD=${ICECAST_SOURCE_PASSWORD}
+      - ICECAST_ADMIN_PASSWORD=${ICECAST_ADMIN_PASSWORD}

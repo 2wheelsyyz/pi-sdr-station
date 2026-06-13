@@ -1,0 +1,27 @@
+# VA3YMX station portal — Homepage (gethomepage.dev)
+# One landing page for BOTH projects (this SDR/ADS-B Pi + the WX3in1 APRS iGate).
+# See docs/09-integration-and-dashboards.md.
+#
+#   Portal:  https://station.example.org/   (via the Caddy proxy)
+#   Bound to host :8088 so Caddy can own :80 (http→https redirect) and :443.
+#
+# Config lives in /opt/homepage/config (services.yaml, settings.yaml, etc.) —
+# copy this repo's compose/homepage/config/* there.
+
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    hostname: homepage
+    restart: unless-stopped
+    ports:
+      - 8088:3000
+    environment:
+      - TZ=America/Toronto
+      # Homepage requires allowed hosts to be declared (CVE hardening).
+      # station.example.org = the HTTPS hostname via the Caddy proxy.
+      - HOMEPAGE_ALLOWED_HOSTS=192.168.1.230,va3ymx-sdr.local,localhost:80,station.example.org
+    volumes:
+      - /opt/homepage/config:/app/config
+      # optional: lets Homepage show container status for the local stacks
+      - /var/run/docker.sock:/var/run/docker.sock:ro

@@ -1,0 +1,72 @@
+# VA3YMX OpenWebRX+ stack — web SDR for the discone dongle.
+# See docs/05-openwebrx-discone.md.
+#
+#   Web UI:  http://<pi-ip>:8073/
+#
+# OpenWebRX+ = the luarvique fork (richest built-in decoder set).
+# Stanislav (LZ2SLL) publishes arm64 Docker images of it; confirm the current
+# image/tag on the project pages:
+#   https://github.com/luarvique/openwebrx
+#   https://luarvique.github.io/ppa/
+#
+# IMPORTANT — the discone now runs on the SDRplay RSPduo (Tuner 1 50 ohm), configured
+# in settings.json as a `type: sdrplay` device. The slechev image already bundles the
+# SDRplay API service + SoapySDRPlay3, so no image swap is needed. (Gotcha: SDRplay
+# only accepts sample rates matching its IF filters — profiles use 2 MHz, not 2.4.)
+
+services:
+  openwebrx:
+    # Derived from slechev/openwebrxplus (OpenWebRX+), but with SoapySDRPlay3 rebuilt
+    # from master — the bundled 0.8.11 module fails sdrplay_api_Init on the RSPduo.
+    # See sdrplay/Dockerfile.
+    build: /opt/openwebrx/sdrplay
+    image: va3ymx/openwebrx-sdrplay:latest
+    container_name: openwebrx
+    hostname: openwebrx
+    restart: unless-stopped
+    ports:
+      - 8073:8073
+    device_cgroup_rules:
+      - "c 189:* rwm"                 # USB access incl. the RSPduo after it re-enumerates
+    environment:
+      - TZ=America/Toronto
+      # Admin login comes from .env (gitignored). NOTE: this image stores the
+      # login in users.json and does NOT apply these on its own — set the
+      # password in .env then run scripts/openwebrx-set-password.sh on the Pi.
+      - OPENWEBRX_ADMIN_USER=${OPENWEBRX_ADMIN_USER:-admin}
+      - OPENWEBRX_ADMIN_PASSWORD=${OPENWEBRX_ADMIN_PASSWORD:-}
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb                     # USB (mount, not devices: — survives re-enumeration)
+      - /opt/openwebrx/config:/etc/openwebrx          # profiles, settings, users
+      - /opt/openwebrx/recordings:/var/lib/openwebrx  # SSTV images, MP3, decoder logs
+    tmpfs:
+      - /tmp/openwebrx                                # scratch off the SD card
+    networks:
+      - sdr
+
+  # rsp_tcp bridge — serves the RSPduo as rtl_tcp (OpenWebRX's soapy_connector can't
+  # drive the RSPduo; see sdrplay/ + docs/05). OpenWebRX connects to rsp-tcp:1234.
+  # Part of the "Web SDR" mode: started/stopped together with openwebrx (it owns the
+  # RSPduo while active). restart:"no" so it doesn't grab the dongle from ACARS on boot.
+  rsp-tcp:
+    build: /opt/rsp/bridge
+    image: va3ymx/rsp-tcp:latest
+    container_name: rsp-tcp
+    hostname: rsp-tcp
+    restart: "no"
+    # ON5HB fork gain control (the official RSPTCPServer had none → a very weak −42 dBFS).
+    # `-l 2` = moderate LNA; omitting `-g` leaves the SDRplay AGC active (auto-manages IF
+    # gain — best for a wideband discone with strong + weak signals). TUNE TO TASTE against
+    # the OpenWebRX waterfall: raise -l (2→6) if it overloads, lower it for more sensitivity;
+    # or set a fixed `-g 20..59` (lower = more gain) to disable AGC.
+    command: ["-a", "0.0.0.0", "-p", "1234", "-d", "1", "-f", "133000000", "-s", "2000000", "-l", "2"]
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+    device_cgroup_rules:
+      - "c 189:* rwm"
+    networks:
+      - sdr
+
+networks:
+  sdr:
+    name: sdr

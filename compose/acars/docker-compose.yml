@@ -1,0 +1,107 @@
+# VA3YMX ACARS — VHF aircraft datalink (~131 MHz) on the discone dongle.
+#
+#   acarsdec  — the decoder. A DISCONE MODE: it shares the one discone dongle, so the
+#               control panel starts/stops it (activating it stops OpenWebRX/HD Radio).
+#               Decodes the NA ACARS channels at once (incl. 131.475 Air Canada),
+#               selecting the dongle by EEPROM serial `discone`, bias-tee on. The span
+#               129.125–131.725 is ~2.6 MHz, so acarsdec runs the dongle at 2.652 MS/s —
+#               above the "guaranteed" 2.4 MS/s, but a Pi 5 + RTL-SDR V4 sustain it
+#               cleanly (tested: no sample loss, ~97% E:0). If you ever see drops, this
+#               wider tune is the first thing to trim (drop 129.125). → acarshub.
+#   acarshub  — always-on web UI (https://acars.example.org) + message database.
+#               No dongle; it keeps history even when ACARS isn't the active mode, and
+#               also listens for VDLM2 (UDP 5555) ready for a future dumpvdl2 decoder.
+#
+# acarsdec uses restart:"no" so it does NOT grab the dongle on boot — OpenWebRX is the
+# default discone consumer. Bring ACARS up via the control panel (or `docker start`).
+
+services:
+  acarshub:
+    image: ghcr.io/sdr-enthusiasts/docker-acarshub:latest
+    container_name: acarshub
+    hostname: acarshub
+    restart: unless-stopped
+    ports:
+      - 8094:80
+    environment:
+      - TZ=America/Toronto
+      - ENABLE_ACARS=external      # receive ACARS JSON on UDP 5550
+      - ENABLE_VDLM=external       # receive VDLM2 JSON on UDP 5555 (future dumpvdl2)
+      - DB_SAVEALL=true
+    volumes:
+      - /opt/acarshub/data:/run/acars       # persists messages.db across restarts
+    networks:
+      - acars
+
+  acars-reader:
+    # Custom readable view of multipart ACARS — reads acarshub's DB read-only and
+    # re-renders it grouped by aircraft (decoded text on top, raw blocks below with
+    # message part + block id). See reader/app.py. No dongle, no socket.
+    build: /opt/acars/reader
+    image: va3ymx/acars-reader:latest
+    container_name: acars-reader
+    hostname: acars-reader
+    restart: unless-stopped
+    ports:
+      - 8095:8095
+    volumes:
+      - /opt/acarshub/data:/data:ro         # read-only access to messages.db (WAL)
+    networks:
+      - acars
+
+  acarsdec:
+    # Runs on the SDRplay RSPduo via SoapySDR (Tuner 1 50 ohm). The image adds the
+    # SDRplay API + SoapySDRPlay3 to acarsdec (see sdrplay/). acarsdec's *native*
+    # sdrplay backend crashes on antenna/gain, so we go through SoapySDR.
+    build: /opt/acars/sdrplay
+    image: va3ymx/acarsdec-sdrplay:latest
+    container_name: acarsdec
+    hostname: acarsdec
+    restart: "no"                  # on-demand discone mode; managed by the control panel
+    # entrypoint = image default: starts the SDRplay API service, then runs acarsdec
+    command:
+      - "--soapysdr"
+      - "driver=sdrplay"
+      - "-a"
+      - "Tuner 1 50 ohm"           # discone is on Tuner 1's 50 ohm SMA (preamp USB-powered)
+      - "-g"
+      - "40"                       # SoapySDR gain (0-48); decodes clean at 14-bit
+      - "-m"
+      - "700"                      # sample rate = 700*12k = 8.4 MS/s — uses the RSPduo's
+                                   # 8 MHz IF filter to cover the WHOLE NA ACARS spread at
+                                   # once (the RSPduo's reason for being). NB: the SDRplay
+                                   # only accepts rates matching its filters (~2/5/6/7/8
+                                   # MHz); odd spans like 2.6 MHz fail — go wide, not narrow.
+      - "-i"
+      - "va3ymx"                   # station id (acarsdec network format)
+      - "--output"
+      - "json:udp:host=acarshub,port=5550"   # feed the web UI
+      - "--output"
+      - "oneline:file:path=-"                # also log a one-line summary to `docker logs`
+      # All 12 North-American ACARS channels, 129.125–136.975 MHz (~7.85 MHz span):
+      - "129.125"
+      - "130.025"
+      - "130.450"
+      - "131.125"
+      - "131.475"                  # Air Canada company (YYZ is an AC hub)
+      - "131.550"                  # ARINC primary
+      - "131.725"                  # main channel in Canadian airspace
+      - "136.700"
+      - "136.750"
+      - "136.800"
+      - "136.825"
+      - "136.975"
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+    device_cgroup_rules:
+      - "c 189:* rwm"
+    healthcheck:
+      disable: true                # default healthcheck checks the bypassed s6 init
+    depends_on:
+      - acarshub
+    networks:
+      - acars
+
+networks:
+  acars:
+    name: acars

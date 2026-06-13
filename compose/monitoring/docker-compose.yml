@@ -1,0 +1,82 @@
+# VA3YMX monitoring — Prometheus + Grafana + aprs-exporter + node-exporter.
+#   • ADS-B  ← ultrafeeder :telegraf metrics (Pi .230 ports 9273/9274)
+#   • APRS   ← aprs-exporter (counts qAR,VA3YMX-1 from APRS-IS)
+#   • Host   ← node-exporter (CPU/temp/mem/disk for crash post-mortems)
+# See docs/09-integration-and-dashboards.md.  Fill in .env first.
+#
+#   Grafana:     http://192.168.1.230:3000/   (import dashboard ID 18398 for ADS-B)
+#   Prometheus:  http://192.168.1.230:9090/   (check Status → Targets)
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    hostname: prometheus
+    restart: unless-stopped
+    ports:
+      - 9090:9090
+    volumes:
+      - /opt/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=90d
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: grafana
+    hostname: grafana
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    environment:
+      - TZ=America/Toronto
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      # Anonymous access with Admin role (LAN dashboard — anyone who can reach it
+      # can also edit). Keep this LAN-only; do not expose port 3000 to the internet.
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
+      # allow Grafana dashboards/panels to be embedded in the Homepage portal (iframe)
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - /opt/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+
+  # APRS exporter — polls the WX3in1 (.235) over telnet (`print stats` etc.) for
+  # the iGate's own RF/digi/igate counters, voltage, uptime, stations heard. docs/09.
+  aprs-exporter:
+    build: /opt/monitoring/aprs-exporter
+    image: va3ymx/aprs-exporter:latest
+    container_name: aprs-exporter
+    hostname: aprs-exporter
+    restart: unless-stopped
+    ports:
+      - 9101:9101
+    environment:
+      - WX_HOST=192.168.1.235
+      - WX_USER=admin
+      - WX_PASS=admin
+      - WX_POLL_SECONDS=60
+
+  # Host telemetry (CPU, temp, memory, disk, network, load) so a future incident
+  # shows the trend leading up to it. host network + pid so it sees the real host.
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    hostname: node-exporter
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --collector.systemd
+    volumes:
+      - /:/host:ro,rslave
+
+volumes:
+  prometheus-data:
+  grafana-data:

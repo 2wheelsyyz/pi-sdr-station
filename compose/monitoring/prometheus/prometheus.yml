@@ -1,0 +1,28 @@
+# Prometheus scrape config — VA3YMX monitoring
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  # ── ADS-B: ultrafeeder metrics (host IP, since ultrafeeder is in another stack) ──
+  - job_name: ultrafeeder-readsb
+    static_configs:
+      - targets: ['192.168.1.230:9274']   # readsb metrics
+  - job_name: ultrafeeder-telegraf
+    static_configs:
+      - targets: ['192.168.1.230:9273']   # telegraf/system metrics
+
+  # ── Prometheus itself ──
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ── APRS: iGate throughput counted from APRS-IS (WX3in1 has no SNMP) ──
+  - job_name: aprs
+    static_configs:
+      - targets: ['aprs-exporter:9101']
+
+  # ── Host telemetry (CPU/temp/mem/disk/net) for crash post-mortems ──
+  - job_name: node
+    static_configs:
+      - targets: ['192.168.1.230:9100']

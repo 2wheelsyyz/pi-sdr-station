@@ -1,0 +1,27 @@
+# VA3YMX HTTPS reverse proxy (Caddy + DreamHost DNS-01). See docs / Caddyfile.
+# Builds a custom Caddy image with the DreamHost DNS module.
+#
+#   Fill compose/caddy/.env with DREAMHOST_API_KEY first (gitignored).
+#   Point sdr.example.org A record -> 192.168.1.230.
+
+services:
+  caddy:
+    build: /opt/caddy
+    image: va3ymx/caddy-dreamhost:latest
+    container_name: caddy
+    hostname: caddy
+    restart: unless-stopped
+    ports:
+      - 80:80                        # http→https redirects (incl. bare IP)
+      - 443:443
+      - 443:443/udp                 # HTTP/3
+    environment:
+      - DREAMHOST_API_KEY=${DREAMHOST_API_KEY}
+    volumes:
+      - /opt/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data            # persists the issued certs
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

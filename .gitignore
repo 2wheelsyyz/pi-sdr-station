@@ -1,0 +1,23 @@
+# Secrets — real feeder keys / passwords live here
+compose/adsb/.env
+compose/openwebrx/.env
+compose/monitoring/.env
+compose/caddy/.env
+compose/icecast/.env
+
+# Generated HTML (rebuild with scripts/build-html.sh)
+# (comment the next two lines out if you prefer to commit the HTML)
+#README.html
+#docs/*.html
+
+# OS cruft
+.DS_Store
+
+# Generated HTML — build with scripts/build-html.sh
+README.html
+index.html
+docs/*.html
+
+# Python bytecode
+__pycache__/
+*.pyc

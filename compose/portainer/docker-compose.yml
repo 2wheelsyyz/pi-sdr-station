@@ -1,0 +1,22 @@
+# Portainer CE — web UI to start/stop/manage all the Docker stacks on the Pi.
+# Lets you Start/Stop OpenWebRX (to free the discone dongle for OP25), and any
+# other container, from a browser instead of SSH. See docs/06 and docs/09.
+#
+#   Web UI:  https://192.168.1.230:9443/
+#   First launch: create the admin user + password in the browser (do it
+#   promptly — Portainer locks new-install setup after a few minutes).
+
+services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    hostname: portainer
+    restart: unless-stopped
+    ports:
+      - 9443:9443                       # HTTPS web UI
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock   # full Docker control (LAN only!)
+      - portainer_data:/data
+
+volumes:
+  portainer_data:

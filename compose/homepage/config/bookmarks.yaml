@@ -1,0 +1,29 @@
+# Homepage bookmarks — VA3YMX's own aggregator station-stats pages.
+
+- Aggregator stats:
+    - FlightAware:
+        - abbr: FA
+          href: https://www.flightaware.com/adsb/stats/user/YOURUSER
+    - FlightRadar24:
+        - abbr: FR
+          href: https://www.flightradar24.com/account/feed-stats/?id=32500
+    - AirNav RadarBox:
+        - abbr: RB
+          href: https://www.airnavradar.com/stations/YOUR_RADARBOX_SN
+    - PlaneFinder:
+        - abbr: PF
+          href: https://planefinder.net/coverage/receiver/226387
+    - ADSBExchange:
+        - abbr: AX
+          href: https://www.adsbexchange.com/myip/
+    - OpenSky:
+        - abbr: OS
+          href: https://opensky-network.org/my-opensky
+
+- Reference:
+    - RadioReference (Ontario):
+        - abbr: RR
+          href: https://www.radioreference.com/db/aid/7820
+    - This documentation:
+        - abbr: VA
+          href: http://192.168.1.230/docs/

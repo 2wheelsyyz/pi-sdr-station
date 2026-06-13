@@ -1,0 +1,184 @@
+# VA3YMX ADS-B stack — ultrafeeder core + premium aggregator feeders.
+# See docs/04-adsb-feeder.md.  Fill in .env first (cp .env.example .env).
+#
+# Map:    http://<pi-ip>:8080/
+# Stats:  http://<pi-ip>:8080/graphs1090/
+#
+# Endpoint lists for community aggregators change over time — the current,
+# authoritative ULTRAFEEDER_CONFIG snippets live at:
+#   https://github.com/sdr-enthusiasts/docker-adsb-ultrafeeder
+#   https://sdr-enthusiasts.gitbook.io/ads-b/
+
+services:
+  # ── Core: receive, decode, map, stats, MLAT, feed community aggregators ──
+  ultrafeeder:
+    # :telegraf tag adds the metrics exporter used by the monitoring stack
+    # (compose/monitoring → Prometheus + Grafana). See docs/09.
+    image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:telegraf
+    container_name: ultrafeeder
+    hostname: ultrafeeder
+    restart: unless-stopped
+    device_cgroup_rules:
+      - 'c 189:* rwm'                 # USB access for the RTL-SDR
+    ports:
+      - 8080:80                       # tar1090 web map + graphs1090
+      - 9273-9274:9273-9274/tcp       # Prometheus metrics (9273 telegraf/system, 9274 readsb)
+    environment:
+      - LOGLEVEL=error
+      - TZ=${FEEDER_TZ}
+      # --- metrics (for compose/monitoring) ---
+      - PROMETHEUS_ENABLE=true
+      # --- SDR / receiver ---
+      - READSB_DEVICE_TYPE=rtlsdr
+      - READSB_RTLSDR_DEVICE=${ADSB_SDR_SERIAL}
+      - READSB_GAIN=${ADSB_GAIN}
+      # Bias-tee powers the Uputronics 1090 preamp over the coax. The 1090 path
+      # has no splitter (DC passes straight to the preamp), so this is permanent.
+      # Don't also power the preamp via USB-C if this is on.
+      - READSB_ENABLE_BIASTEE=true
+      - READSB_RX_LOCATION_ACCURACY=2
+      - READSB_STATS_RANGE=true
+      # --- location ---
+      - READSB_LAT=${FEEDER_LAT}
+      - READSB_LON=${FEEDER_LONG}
+      - READSB_ALT=${FEEDER_ALT_M}m
+      # --- map defaults ---
+      - UPDATE_TAR1090=true
+      - TAR1090_DEFAULTCENTERLAT=${FEEDER_LAT}
+      - TAR1090_DEFAULTCENTERLON=${FEEDER_LONG}
+      - TAR1090_RANGERINGSDISTANCES=50,100,150,200
+      - TAR1090_RANGERINGSCOLORS='#1A237E','#0D47A1','#42A5F5','#90CAF9'
+      # --- feeder identity (community aggregators) ---
+      - UUID=${ULTRAFEEDER_UUID}
+      # --- where to send data ---
+      # The community/free aggregators: data out + MLAT in one place.
+      # Verify/extend this list against the sdr-enthusiasts docs (link above).
+      - ULTRAFEEDER_CONFIG=
+          adsb,feed.adsb.fi,30004,beast_reduce_plus_out;
+          adsb,in.adsb.lol,30004,beast_reduce_plus_out;
+          adsb,feed.airplanes.live,30004,beast_reduce_plus_out;
+          adsb,feed.planespotters.net,30004,beast_reduce_plus_out;
+          adsb,feed.theairtraffic.com,30004,beast_reduce_plus_out;
+          mlat,feed.adsb.fi,31090,39001;
+          mlat,in.adsb.lol,31090,39002;
+          mlat,feed.airplanes.live,31090,39003;
+          mlat,feed.theairtraffic.com,31090,39004;
+          mlathub,piaware,30105,beast_in;
+          mlathub,fr24,30105,beast_in
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb           # USB access for the RTL-SDR (with the cgroup rule above)
+      - /opt/adsb/ultrafeeder/globe_history:/var/globe_history
+      - /opt/adsb/ultrafeeder/graphs1090:/var/lib/collectd
+      - /proc/diskstats:/proc/diskstats:ro
+    tmpfs:
+      - /run:exec,size=256M
+      - /tmp:size=128M
+      - /var/log
+
+  # ── FlightAware (piaware) — claim your site after first boot ──
+  piaware:
+    image: ghcr.io/sdr-enthusiasts/docker-piaware:latest
+    container_name: piaware
+    hostname: piaware
+    restart: unless-stopped
+    environment:
+      - TZ=${FEEDER_TZ}
+      - BEASTHOST=ultrafeeder
+      - LAT=${FEEDER_LAT}
+      - LONG=${FEEDER_LONG}
+      - FEEDER_ID=${FEEDER_FA_ID}
+    ports:
+      - 8081:8080                     # piaware local status page (optional)
+    tmpfs:
+      - /run:exec,size=64M
+      - /var/log
+
+  # ── FlightRadar24 (no MLAT here, by FR24 request) ──
+  fr24:
+    image: ghcr.io/sdr-enthusiasts/docker-flightradar24:latest
+    container_name: fr24
+    hostname: fr24
+    restart: unless-stopped
+    environment:
+      - TZ=${FEEDER_TZ}
+      - BEASTHOST=ultrafeeder
+      - FR24KEY=${FR24_SHARING_KEY}
+      - MLAT=no
+    ports:
+      - 8754:8754                     # fr24 status page (optional)
+    tmpfs:
+      - /run:exec,size=64M
+      - /var/log
+
+  # ── ADSBExchange ──
+  adsbx:
+    image: ghcr.io/sdr-enthusiasts/docker-adsbexchange:latest
+    container_name: adsbx
+    hostname: adsbx
+    restart: unless-stopped
+    environment:
+      - TZ=${FEEDER_TZ}
+      - BEASTHOST=ultrafeeder
+      - LAT=${FEEDER_LAT}
+      - LONG=${FEEDER_LONG}
+      - ALT=${FEEDER_ALT_M}m
+      - UUID=${ADSBX_UUID}
+      - SITENAME=VA3YMX
+    tmpfs:
+      - /run:exec,size=64M
+      - /var/log
+
+  # ── AirNav RadarBox (migrated from old rbfeeder) ──
+  airnavradar:
+    image: ghcr.io/sdr-enthusiasts/docker-airnavradar:latest
+    container_name: airnavradar
+    hostname: airnavradar
+    restart: unless-stopped
+    environment:
+      - TZ=${FEEDER_TZ}
+      - BEASTHOST=ultrafeeder
+      - MLAT_RESULTS_BEASTHOST=ultrafeeder
+      - MLAT_RESULTS_BEASTPORT=31004
+      - LAT=${FEEDER_LAT}
+      - LONG=${FEEDER_LONG}
+      - ALT=${FEEDER_ALT_M}
+      - SHARING_KEY=${RADARBOX_SHARING_KEY}
+    tmpfs:
+      - /run:exec,size=64M
+      - /var/log
+
+  # ── PlaneFinder (migrated from old pfclient) ──
+  planefinder:
+    image: ghcr.io/sdr-enthusiasts/docker-planefinder:latest
+    container_name: planefinder
+    hostname: planefinder
+    restart: unless-stopped
+    environment:
+      - TZ=${FEEDER_TZ}
+      - BEASTHOST=ultrafeeder
+      - LAT=${FEEDER_LAT}
+      - LONG=${FEEDER_LONG}
+      - SHARECODE=${PLANEFINDER_SHARECODE}
+    ports:
+      - 30053:30053                   # planefinder status page (optional)
+    tmpfs:
+      - /run:exec,size=64M
+      - /var/log
+
+  # ── OpenSky Network (migrated from old openskyd) ──
+  opensky:
+    image: ghcr.io/sdr-enthusiasts/docker-opensky-network:latest
+    container_name: opensky
+    hostname: opensky
+    restart: unless-stopped
+    environment:
+      - TZ=${FEEDER_TZ}
+      - BEASTHOST=ultrafeeder
+      - LAT=${FEEDER_LAT}
+      - LONG=${FEEDER_LONG}
+      - ALT=${FEEDER_ALT_M}
+      - OPENSKY_USERNAME=${OPENSKY_USERNAME}
+      - OPENSKY_SERIAL=${OPENSKY_SERIAL}
+    tmpfs:
+      - /run:exec,size=64M
+      - /var/log

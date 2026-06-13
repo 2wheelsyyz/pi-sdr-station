@@ -1,0 +1,21 @@
+# VA3YMX station control panel — start/stop SDR containers from the dashboard.
+# Embedded in Homepage via an iframe widget (see compose/homepage + docs/09).
+#
+#   Direct:  http://192.168.1.230:8093/
+#
+# Has Docker-socket access (to start/stop containers) — keep LAN-only.
+
+services:
+  control:
+    build: /opt/control
+    image: va3ymx/control:latest
+    container_name: control
+    hostname: control
+    restart: unless-stopped
+    ports:
+      - 8093:8093
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/control/config.yaml:/app/config.yaml:ro
+      # read-only so the panel can launch the HD Radio stream with the source password
+      - /opt/icecast/.env:/icecast.env:ro

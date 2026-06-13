@@ -1,0 +1,12 @@
+#!/bin/sh
+# hdstream <freq-MHz> [program] — decode an HD Radio station with nrsc5 and push
+# the audio to Icecast as MP3. Run inside the nrsc5 image (--entrypoint hdstream).
+FREQ="$1"; PROG="${2:-0}"
+: "${ICECAST_HOST:=192.168.1.230}"
+: "${ICECAST_PORT:=8000}"
+: "${ICECAST_MOUNT:=/hd.mp3}"
+: "${NRSC5_DEVICE:=1}"
+exec sh -c "nrsc5 -d '$NRSC5_DEVICE' -T -o - -t raw '$FREQ' '$PROG' \
+ | ffmpeg -hide_banner -loglevel warning -f s16le -ar 44100 -ac 2 -i - \
+   -c:a libmp3lame -b:a 128k -content_type audio/mpeg -ice_name 'VA3YMX HD Radio' \
+   -f mp3 'icecast://source:${ICECAST_SOURCE_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}${ICECAST_MOUNT}'"

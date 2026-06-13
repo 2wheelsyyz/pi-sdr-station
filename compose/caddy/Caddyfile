@@ -1,0 +1,84 @@
+# VA3YMX HTTPS reverse proxy — ONE wildcard cert (*.example.org) via DreamHost
+# DNS-01, then host-routed to each service. A single challenge avoids hammering
+# DreamHost's slow/rate-limited DNS API (issuing 7 certs at once fails).
+# Trusted Let's Encrypt cert = no browser warnings (OpenWebRX works in Firefox).
+# LAN-only: each hostname's A record points at 192.168.1.230 (private).
+
+*.example.org {
+	tls {
+		dns dreamhost {env.DREAMHOST_API_KEY}
+		# DreamHost propagates slowly — give it room
+		propagation_delay 2m
+		propagation_timeout 15m
+		resolvers 1.1.1.1 8.8.8.8
+	}
+
+	@sdr host sdr.example.org
+	handle @sdr {
+		reverse_proxy 192.168.1.230:8073
+	}
+
+	@adsb host adsb.example.org
+	handle @adsb {
+		reverse_proxy 192.168.1.230:8080
+	}
+
+	@grafana host grafana.example.org
+	handle @grafana {
+		reverse_proxy 192.168.1.230:3000
+	}
+
+	@control host control.example.org
+	handle @control {
+		reverse_proxy 192.168.1.230:8093
+	}
+
+	@prometheus host prometheus.example.org
+	handle @prometheus {
+		reverse_proxy 192.168.1.230:9090
+	}
+
+	@station host station.example.org
+	handle @station {
+		reverse_proxy 192.168.1.230:8088
+	}
+
+	@hd host hd.example.org
+	handle @hd {
+		# Icecast HD Radio stream — listen at https://hd.example.org/hd.mp3
+		reverse_proxy 192.168.1.230:8000
+	}
+
+	@acars host acars.example.org
+	handle @acars {
+		# ACARSHub — live aircraft datalink. Uses WebSockets (Caddy upgrades automatically).
+		reverse_proxy 192.168.1.230:8094
+	}
+
+	@acarsreader host acars-reader.example.org
+	handle @acarsreader {
+		# Custom readable multipart-ACARS view (reads acarshub's DB).
+		reverse_proxy 192.168.1.230:8095
+	}
+
+	@portainer host portainer.example.org
+	handle @portainer {
+		reverse_proxy https://192.168.1.230:9443 {
+			transport http {
+				tls_insecure_skip_verify
+			}
+		}
+	}
+
+	# anything else on the wildcard
+	handle {
+		respond "VA3YMX SDR station — unknown host" 404
+	}
+}
+
+# Bare-IP HTTP dashboard → 301 redirect to the secure portal.
+# (Named hosts on :80 are auto-redirected to https by Caddy.)
+http://192.168.1.230 {
+	redir https://station.example.org{uri} permanent
+}
+

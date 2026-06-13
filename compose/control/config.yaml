@@ -1,0 +1,40 @@
+# Which containers the station control panel manages.
+#
+# discone_modes = containers that each need the single discone dongle. The panel
+# treats them as radio buttons: activating one stops the others. The *active* mode
+# gets a "release" button that stops it and frees the dongle. Decoder containers
+# (op25/acarsdec/…) only appear once you've created them (Phase 2); until then they
+# show as "absent" and their button is disabled.
+#   cli: true  → not a plain start/stop row. HD Radio has its own tuner block in the
+#   panel (frequency + program + player); the app launches/stops its container, so
+#   it's excluded from the generic mode list. (`hdradio.sh` still works from the CLI.)
+#   with: [..]  → helper containers started/stopped together with this mode (e.g. the
+#   rsp_tcp bridge that feeds OpenWebRX the RSPduo as rtl_tcp).
+discone_modes:
+  - label: Web SDR (OpenWebRX)
+    container: openwebrx
+    with: [rsp-tcp]          # the bridge owns the RSPduo while OpenWebRX is active
+  - label: HD Radio (nrsc5 → Icecast)
+    container: hdradio
+    cli: true            # rendered as the tuner block (see app.py); also ./hdradio.sh
+  - label: Trunking (OP25)
+    container: op25
+  - label: ACARS (acarsdec)
+    container: acarsdec
+  - label: VDL2 (dumpvdl2)
+    container: dumpvdl2
+
+# services = always-on containers; plain start/stop.
+services:
+  - label: ADS-B (ultrafeeder)
+    container: ultrafeeder
+  - label: Grafana
+    container: grafana
+  - label: Prometheus
+    container: prometheus
+  - label: APRS exporter
+    container: aprs-exporter
+  - label: Icecast (HD Radio stream)
+    container: icecast
+  - label: ACARS Hub (web UI)
+    container: acarshub
